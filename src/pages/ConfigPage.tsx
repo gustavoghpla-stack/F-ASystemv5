@@ -11,6 +11,7 @@ const ALL_FEATURES = [
   { key: 'usuarios', label: 'Usuários', icon: '👥' },
   { key: 'estoque', label: 'Estoque', icon: '📦' },
   { key: 'abastecimento', label: 'Abastecimento', icon: '⛽' },
+  { key: 'controleOleo', label: 'Controle de Óleo', icon: '🛢️' },
   { key: 'fluxoCaixa', label: 'Fluxo de Caixa', icon: '💰' },
   { key: 'orcamento', label: 'Orçamento', icon: '📋' },
   { key: 'certificado', label: 'Certificado', icon: '📜' },

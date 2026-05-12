@@ -29,7 +29,7 @@ const PAGE_FEATURE: Record<string, string> = {
   'usuarios': 'usuarios',
   'estoque': 'estoque',
   'abastecimento': 'abastecimento',
-  'controle-oleo': 'abastecimento',
+  'controle-oleo': 'controleOleo',
   'fluxo-caixa': 'fluxoCaixa',
   'rel-func': 'relatorios',
   'rel-aniv': 'relatorios',
