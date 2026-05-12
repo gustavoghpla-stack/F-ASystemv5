@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig({
   // Base path must match your GitHub repository name exactly
-  base: '/fa-system-web/',
+  base: '/F-ASystemv5/',
   server: {
     host: "::",
     port: 8080,
