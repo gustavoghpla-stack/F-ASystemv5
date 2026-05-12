@@ -1,46 +1,19 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
-  const isDev = mode === "development";
-
-  return {
-    base: "/sofa-shine-squad/", // 🔥 ESSENCIAL pro GitHub Pages
-
-    server: {
-      host: "::",
-      port: 8080,
-      hmr: {
-        overlay: false,
-      },
+export default defineConfig({
+  // Base path must match your GitHub repository name exactly
+  base: '/fa-system-web/',
+  server: {
+    host: "::",
+    port: 8080,
+  },
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
     },
-
-    plugins: [
-      react(),
-      isDev && componentTagger(),
-    ].filter(Boolean),
-
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
-      dedupe: [
-        "react",
-        "react-dom",
-        "react/jsx-runtime",
-        "react/jsx-dev-runtime",
-        "@tanstack/react-query",
-        "@tanstack/query-core",
-      ],
-    },
-
-    build: {
-      outDir: "dist",
-      sourcemap: false, // melhora performance em produção
-      chunkSizeWarningLimit: 1000,
-    },
-  };
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
+  },
 });
