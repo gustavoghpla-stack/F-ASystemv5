@@ -285,7 +285,7 @@ export default function EquipePage() {
         {/* ── Ranking de Funcionários ── */}
         {funcionarios.length > 0 && monthAvaliacoes.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-4 mt-4">
-            <div className="text-[12px] font-bold text-primary mb-3">🌟 Ranking de Funcionários ({MESES[viewMonth - 1]})</div>
+            <div className="text-[12px] font-bold text-primary mb-3">🌟 Ranking de Funcionários ({MESES[filterMonth - 1]})</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Top Elogios */}
               <div>

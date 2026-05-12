@@ -12,6 +12,7 @@ import DocumentosPage from '@/pages/DocumentosPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import EstoquePage from '@/pages/EstoquePage';
 import AbastecimentoPage from '@/pages/AbastecimentoPage';
+import ControleOleoPage from '@/pages/ControleOleoPage';
 import FluxoCaixaPage from '@/pages/FluxoCaixaPage';
 import { RelFuncPage, RelAnivPage, RelUsersPage, RelAcessosPage } from '@/pages/RelatoriosPages';
 import ConfigPage from '@/pages/ConfigPage';
@@ -28,6 +29,7 @@ const PAGE_FEATURE: Record<string, string> = {
   'usuarios': 'usuarios',
   'estoque': 'estoque',
   'abastecimento': 'abastecimento',
+  'controle-oleo': 'abastecimento',
   'fluxo-caixa': 'fluxoCaixa',
   'rel-func': 'relatorios',
   'rel-aniv': 'relatorios',
@@ -106,6 +108,7 @@ export default function Index() {
     'usuarios': <UsuariosPage />,
     'estoque': <EstoquePage />,
     'abastecimento': <AbastecimentoPage />,
+    'controle-oleo': <ControleOleoPage />,
     'fluxo-caixa': <FluxoCaixaPage />,
     'rel-func': <RelFuncPage />,
     'rel-aniv': <RelAnivPage />,

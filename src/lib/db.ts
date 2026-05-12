@@ -43,6 +43,8 @@ export interface EstoqueMovimento {
 export interface Veiculo {
   id: number; placa: string; modelo: string; ano: string; cor: string;
   combustivel: string; hodometroAtual: number; cadastrado: string;
+  metaKmOleo: number; hodometroUltimaTroca: number;
+  dataUltimaTroca: string; dataProximaTroca: string;
 }
 
 export interface Abastecimento {
@@ -109,7 +111,7 @@ export interface AppConfig {
   cargosCustom?: string[];
 }
 
-export type DBKey = 'func' | 'bancos' | 'escalas' | 'docs' | 'users' | 'acessos' | 'estoque' | 'estoque_mov' | 'veiculos' | 'abastecimentos' | 'fluxo_caixa' | 'custos_fixos' | 'equipe_avaliacoes';
+export type DBKey = 'func' | 'bancos' | 'escalas' | 'docs' | 'users' | 'acessos' | 'estoque' | 'estoque_mov' | 'veiculos' | 'abastecimentos' | 'fluxo_caixa' | 'custos_fixos' | 'equipe_avaliacoes' | 'trocas_oleo';
 
 let _syncTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncEstoqueTimer: ReturnType<typeof setTimeout> | null = null;
@@ -117,7 +119,7 @@ let _syncFluxoTimer: ReturnType<typeof setTimeout> | null = null;
 let _syncEquipeTimer: ReturnType<typeof setTimeout> | null = null;
 
 const RH_KEYS: DBKey[] = ['func', 'bancos', 'escalas', 'docs', 'users'];
-const ESTOQUE_KEYS: DBKey[] = ['estoque', 'estoque_mov', 'veiculos', 'abastecimentos'];
+const ESTOQUE_KEYS: DBKey[] = ['estoque', 'estoque_mov', 'veiculos', 'abastecimentos', 'trocas_oleo'];
 const FLUXO_KEYS: DBKey[] = ['fluxo_caixa', 'custos_fixos'];
 const EQUIPE_KEYS: DBKey[] = ['equipe_avaliacoes'];
 
@@ -370,6 +372,7 @@ export async function syncEstoqueGS(silent = false): Promise<boolean> {
     estoque_mov: DB.get<EstoqueMovimento>('estoque_mov'),
     veiculos: DB.get<Veiculo>('veiculos'),
     abastecimentos: DB.get<Abastecimento>('abastecimentos'),
+    trocas_oleo: DB.get<any>('trocas_oleo'),
   };
   try {
     const result = await gsFetch(url, { method: 'POST', body: JSON.stringify(payload) });

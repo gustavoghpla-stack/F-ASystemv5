@@ -17,6 +17,7 @@ const allNavItems: NavItem[] = [
   {                         id: 'usuarios',       icon: '👥', label: 'Usuários',           feature: 'usuarios' },
   { section: 'Operações',   id: 'estoque',        icon: '📦', label: 'Estoque',            feature: 'estoque' },
   {                         id: 'abastecimento',  icon: '⛽', label: 'Abastecimento',      feature: 'abastecimento' },
+  {                         id: 'controle-oleo',  icon: '🛢️', label: 'Controle de Óleo',   feature: 'abastecimento' },
   { section: 'Financeiro',  id: 'fluxo-caixa',   icon: '💰', label: 'Fluxo de Caixa',    feature: 'fluxoCaixa' },
   {                         id: 'orcamento',      icon: '📋', label: 'Orçamento',          feature: 'orcamento' },
   {                         id: 'certificado',    icon: '📜', label: 'Certificado',        feature: 'certificado' },
