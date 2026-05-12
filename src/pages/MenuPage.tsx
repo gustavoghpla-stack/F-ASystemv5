@@ -1,4 +1,4 @@
-import { hasPermission } from '@/lib/db';
+import { hasPermission , onSyncComplete } from '@/lib/db';
 import { PageHeader } from '@/components/ui-custom';
 import { useAuth } from '@/contexts/AuthContext';
 

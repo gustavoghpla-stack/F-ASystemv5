@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, type EstoqueItem, type EstoqueMovimento, syncEstoqueGS } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, type EstoqueItem, type EstoqueMovimento, syncEstoqueGS , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
 import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
@@ -26,6 +26,7 @@ export default function EstoquePage() {
   const [movItemId, setMovItemId] = useState<number | null>(null);
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
 
   const list = DB.get<EstoqueItem>('estoque').filter(e => {
     if (!search) return true;

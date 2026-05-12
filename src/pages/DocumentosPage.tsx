@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, type Documento } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, type Documento , onSyncComplete } from '@/lib/db';
 import { PageHeader, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
 
 function printListaDocumentos(docs: Documento[]) {
@@ -16,6 +16,7 @@ export default function DocumentosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
 
   const list = DB.get<Documento>('docs').filter(d => !search || d.desc?.toLowerCase().includes(search.toLowerCase()));
 

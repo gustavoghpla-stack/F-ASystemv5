@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import { DB, logAcesso, initDefaultData, hashPassword, verifyPassword, isPasswordHash, loadAllFromGS, type Usuario } from '@/lib/db';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { DB, logAcesso, initDefaultData, hashPassword, verifyPassword, isPasswordHash, loadAllFromGS, dispatchSyncComplete, type Usuario } from '@/lib/db';
+
+// Intervalo de sincronização automática em background (60 segundos)
+const AUTO_SYNC_INTERVAL_MS = 60_000;
 
 interface Session {
   user: string;
@@ -11,6 +14,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   loadingMsg: string;
+  lastSync: Date | null;
   login: (email: string, password: string) => Promise<string | null>;
   logout: () => void;
   permissionsVersion: number;
@@ -37,8 +41,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession]       = useState<Session | null>(null);
   const [loading, setLoading]       = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+  const [lastSync, setLastSync]     = useState<Date | null>(null);
   const [permissionsVersion, setPermissionsVersion] = useState(0);
   const refreshPermissions = useCallback(() => setPermissionsVersion(v => v + 1), []);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Background auto-sync: roda a cada 60s enquanto logado ───────────────────
+  useEffect(() => {
+    if (!session) {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      return;
+    }
+
+    const runSync = async () => {
+      // Só sincroniza se a aba está visível (economiza requisições)
+      if (document.visibilityState === 'hidden') return;
+      const result = await loadAllFromGS();
+      if (result.ok) setLastSync(new Date());
+    };
+
+    intervalRef.current = setInterval(runSync, AUTO_SYNC_INTERVAL_MS);
+    return () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    };
+  }, [session]);
 
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     await initDefaultData();
@@ -130,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, loading, loadingMsg, login, logout, permissionsVersion, refreshPermissions }}>
+    <AuthContext.Provider value={{ session, loading, loadingMsg, lastSync, login, logout, permissionsVersion, refreshPermissions }}>
       {children}
     </AuthContext.Provider>
   );

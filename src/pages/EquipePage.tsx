@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { DB, nextId, fmtDate, syncEquipeGS, verifyPassword, type Funcionario, type AvaliacaoRegistro, MESES } from '@/lib/db';
+import { DB, nextId, fmtDate, syncEquipeGS, verifyPassword, type Funcionario, type AvaliacaoRegistro, MESES , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
 import { PageHeader, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
@@ -66,6 +66,7 @@ export default function EquipePage() {
   const danoAlertShownRef = useRef(false);
   const [tick, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
   void tick;
 
   const funcionarios = DB.get<Funcionario>('func').filter(f => !f.demissao);

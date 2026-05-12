@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, fmtMoney, type FluxoCaixaRegistro, type FluxoMeta, type CustoFixo, MESES, syncFluxoGS, loadFromFluxoGS } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, fmtMoney, type FluxoCaixaRegistro, type FluxoMeta, type CustoFixo, MESES, syncFluxoGS, loadFromFluxoGS , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
 import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select, CurrencyInput } from '@/components/ui-custom';
@@ -16,6 +16,7 @@ export default function FluxoCaixaPage() {
   const [viewMonth, setViewMonth] = useState(new Date().getMonth() + 1);
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
 
   const allData = DB.get<FluxoCaixaRegistro>('fluxo_caixa');
   const config = DB.getObj('config');

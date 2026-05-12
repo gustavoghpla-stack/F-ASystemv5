@@ -661,5 +661,34 @@ export async function loadAllFromGS(): Promise<{ ok: boolean; errors: string[] }
   // Aguarda todas em paralelo
   await Promise.allSettled(tasks);
 
+  // Notifica todas as páginas abertas para atualizar seus dados
+  if (errors.length === 0 || tasks.length > errors.length) {
+    dispatchSyncComplete();
+  }
+
   return { ok: errors.length === 0, errors };
+}
+
+// ─── Sistema de notificação de sync automático ────────────────────────────────
+// Permite que qualquer página se inscreva para ser atualizada automaticamente
+// quando dados novos chegam da planilha Google.
+//
+// Uso em qualquer página:
+//   useEffect(() => onSyncComplete(refresh), []);
+
+type SyncCallback = () => void;
+const _syncCallbacks: SyncCallback[] = [];
+
+/** Registra callback chamado após cada sync bem-sucedido. Retorna função de cleanup. */
+export function onSyncComplete(cb: SyncCallback): () => void {
+  _syncCallbacks.push(cb);
+  return () => {
+    const i = _syncCallbacks.indexOf(cb);
+    if (i >= 0) _syncCallbacks.splice(i, 1);
+  };
+}
+
+/** Notifica todas as páginas registradas que há dados novos. */
+export function dispatchSyncComplete(): void {
+  _syncCallbacks.forEach(cb => { try { cb(); } catch { /* noop */ } });
 }

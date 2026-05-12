@@ -36,7 +36,7 @@ interface Props {
 }
 
 export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme, children }: Props) {
-  const { session, logout, permissionsVersion } = useAuth();
+  const { session, logout, permissionsVersion, lastSync } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -177,6 +177,11 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
             <div className="overflow-hidden whitespace-nowrap">
               <div className="font-heading text-[13px] font-bold text-primary tracking-[0.5px]">F&A System Web</div>
               <div className="text-[8px] text-muted-foreground">Bacamarte Dev Company</div>
+              {lastSync && (
+                <div className="text-[7px] text-success/70 mt-0.5">
+                  🔄 {lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
             </div>
           )}
         </div>

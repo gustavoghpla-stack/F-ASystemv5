@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, fmtDate, syncGS, loadFromGS, type Funcionario, UF_OPTIONS, type Escala } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, fmtDate, syncGS, loadFromGS, type Funcionario, UF_OPTIONS, type Escala , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
 import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select, CurrencyInput, ConfirmModal } from '@/components/ui-custom';
@@ -12,6 +12,7 @@ export default function FuncionariosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const allFunc = DB.get<Funcionario>('func');

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, fmtMoney, type Veiculo, type Abastecimento, syncEstoqueGS } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, fmtMoney, type Veiculo, type Abastecimento, syncEstoqueGS , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
 import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
@@ -13,6 +13,7 @@ export default function AbastecimentoPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
   void tick;
 
   return (

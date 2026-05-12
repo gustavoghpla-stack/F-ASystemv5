@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { DB, nextId, syncGS, isDemitido, type BancoRegistro, type Funcionario, logAcesso } from '@/lib/db';
+import { useState, useEffect } from 'react';
+import { DB, nextId, syncGS, isDemitido, type BancoRegistro, type Funcionario, logAcesso , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select, ConfirmModal } from '@/components/ui-custom';
 
@@ -10,6 +10,7 @@ export default function BancosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
+  useEffect(() => onSyncComplete(refresh), []);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const funcs = DB.get<Funcionario>('func');

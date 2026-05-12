@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { DB, fmtDate, fmtMoneyBRL, MESES, type Funcionario, type Usuario, type AcessoLog } from '@/lib/db';
+import { useState, useMemo, useEffect } from 'react';
+import { DB, fmtDate, fmtMoneyBRL, MESES, type Funcionario, type Usuario, type AcessoLog , onSyncComplete } from '@/lib/db';
 import { PageHeader, TableWrapper, Th, Td, Badge, StatCard, Select, Input, Field, Btn, Modal, FormCard } from '@/components/ui-custom';
 import { printFuncionarioPDF } from '@/lib/pdfFuncionario';
 
