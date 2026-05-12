@@ -43,7 +43,7 @@ const PAGE_FEATURE: Record<string, string> = {
 };
 
 export default function Index() {
-  const { session, loading, permissionsVersion } = useAuth();
+  const { session, loading, loadingMsg, permissionsVersion } = useAuth();
   const [currentPage, setCurrentPage] = useState('menu');
   const [theme, setTheme] = useState<'dark' | 'light' | 'orange'>('dark');
 
@@ -65,7 +65,9 @@ export default function Index() {
           style={{ filter: 'drop-shadow(0 0 12px hsl(var(--primary)/0.4))' }}
         />
         <div className="text-center space-y-1.5">
-          <div className="text-[16px] font-bold text-primary">Carregando dados...</div>
+          <div className="text-[16px] font-bold text-primary">
+            {loadingMsg || 'Carregando dados...'}
+          </div>
           <div className="text-[12px] text-muted-foreground">Sincronizando com as planilhas Google</div>
         </div>
         <div className="flex gap-1.5 mt-2">
