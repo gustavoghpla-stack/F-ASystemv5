@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { DB, onSyncComplete } from '@/lib/db';
+import { hasPermission, onSyncComplete } from '@/lib/db';
 import logoImg from '@/assets/logo.png';
 
 interface NavItem {
@@ -61,50 +61,12 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
   const userEmail = session?.user || '';
 
   const navItems = useMemo(() => {
-    // Helper: safely extract a plain permissions object from any value
-    const toPermsObj = (raw: any): Record<string, boolean | undefined> => {
-      if (!raw) return {};
-      if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
-      // Handle string: could be JSON string or GAS-style "{key=value,...}"
-      if (typeof raw === 'string') {
-        try {
-          const parsed = JSON.parse(raw);
-          if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-        } catch { /* noop */ }
-        // Fallback: parse GAS Java-style "{key=value,...}" format
-        try {
-          const cleaned = raw.replace(/^\{/, '').replace(/\}$/, '');
-          const obj: Record<string, boolean> = {};
-          cleaned.split(',').forEach(pair => {
-            const [k, v] = pair.split('=').map(s => s.trim());
-            if (k) obj[k] = v === 'false' ? false : v === 'true' ? true : Boolean(v);
-          });
-          return obj;
-        } catch { /* noop */ }
-      }
-      return {};
-    };
-
-    const users = DB.get<any>('users');
-    const user  = users.find((u: any) => u.email?.toLowerCase() === userEmail.toLowerCase());
-    const syncedPerms = toPermsObj(user?.permissions);
-    const localPerms  = toPermsObj(DB.getObj('config').userPermissions?.[userEmail]);
-
-    const isAllowed = (feature: string): boolean => {
-      // Default DENY: só libera quando o toggle está explicitamente true.
-      // Garante que o menu mobile (drawer + bottom nav) respeite as
-      // permissões de usuário, idêntico à intenção documentada em db.ts.
-      if (syncedPerms[feature] === true) return true;
-      if (localPerms[feature]  === true) return true;
-      return false;
-    };
-
     return allNavItems.filter(item => {
       // masterOnly items (Config, Debug, Rel-Acessos) ALWAYS visible to Master — never blocked
       if (item.masterOnly) return userNivel === 'Master';
       // Master sees everything regardless of permission toggles
       if (userNivel === 'Master') return true;
-      if (item.feature) return isAllowed(item.feature);
+      if (item.feature) return hasPermission(userEmail, userNivel, item.feature);
       return true;
     });
   }, [userNivel, userEmail, permissionsVersion]);
