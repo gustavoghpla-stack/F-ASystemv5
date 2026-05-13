@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { hasPermission, onSyncComplete } from '@/lib/db';
+import { DB, onSyncComplete } from '@/lib/db';
 import logoImg from '@/assets/logo.png';
 
 interface NavItem {
@@ -61,12 +61,23 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
   const userEmail = session?.user || '';
 
   const navItems = useMemo(() => {
+    // Read synced permissions from user object (travels with planilha sync — works on all devices)
+    const users = DB.get<any>('users');
+    const user  = users.find((u: any) => u.email?.toLowerCase() === userEmail.toLowerCase());
+    const syncedPerms = (user?.permissions ?? {}) as Record<string, boolean | undefined>;
+    // Fallback: local config perms (legacy, master's device only)
+    const localPerms = (DB.getObj('config').userPermissions?.[userEmail] ?? {}) as Record<string, boolean | undefined>;
+
+    const isAllowed = (feature: string): boolean => {
+      if (feature in syncedPerms) return syncedPerms[feature] !== false;
+      if (feature in localPerms)  return localPerms[feature]  !== false;
+      return true; // default: allow
+    };
+
     return allNavItems.filter(item => {
-      // masterOnly items (Config, Debug, Rel-Acessos) ALWAYS visible to Master — never blocked
       if (item.masterOnly) return userNivel === 'Master';
-      // Master sees everything regardless of permission toggles
       if (userNivel === 'Master') return true;
-      if (item.feature) return hasPermission(userEmail, userNivel, item.feature);
+      if (item.feature) return isAllowed(item.feature);
       return true;
     });
   }, [userNivel, userEmail, permissionsVersion]);

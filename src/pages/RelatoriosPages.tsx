@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { DB, fmtDate, fmtMoneyBRL, MESES, type Funcionario, type Usuario, type AcessoLog , onSyncComplete } from '@/lib/db';
-import { PageHeader, TableWrapper, Th, Td, Badge, StatCard, Select, Input, Field, Btn, Modal, FormCard , ConfirmModal } from '@/components/ui-custom';
+import { PageHeader, TableWrapper, Th, Td, Badge, StatCard, Select, Input, Field, Btn, Modal, FormCard } from '@/components/ui-custom';
 import { printFuncionarioPDF } from '@/lib/pdfFuncionario';
 
 export function RelFuncPage() {
@@ -213,7 +213,8 @@ export function RelAcessosPage() {
   );
 
   const clear = () => {
-        DB.set('acessos', []);
+    if (!confirm('Limpar todo o registro de acessos?')) return;
+    DB.set('acessos', []);
     setRefreshKey(k => k + 1);
   };
 

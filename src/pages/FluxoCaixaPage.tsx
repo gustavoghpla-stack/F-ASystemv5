@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { DB, nextId, fmtMoney, type FluxoCaixaRegistro, type FluxoMeta, type CustoFixo, MESES, syncFluxoGS, loadFromFluxoGS , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
-import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select, CurrencyInput , ConfirmModal } from '@/components/ui-custom';
+import { PageHeader, StatCard, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select, CurrencyInput } from '@/components/ui-custom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 
 export default function FluxoCaixaPage() {
@@ -17,8 +17,6 @@ export default function FluxoCaixaPage() {
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
   useEffect(() => onSyncComplete(refresh), []);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [confirmDeleteType, setConfirmDeleteType] = useState<'fluxo' | 'custo'>('fluxo');
 
   const allData = DB.get<FluxoCaixaRegistro>('fluxo_caixa');
   const config = DB.getObj('config');
@@ -74,7 +72,8 @@ export default function FluxoCaixaPage() {
   });
 
   const del = (id: number) => {
-        DB.set('fluxo_caixa', allData.filter(x => x.id !== id));
+    if (!confirm('Excluir este registro?')) return;
+    DB.set('fluxo_caixa', allData.filter(x => x.id !== id));
     logAcesso('Excluiu registro fluxo de caixa ID ' + id, session!.name, session!.user);
     syncFluxoGS(true);
     refresh();
@@ -514,7 +513,8 @@ function CustosFixosTab({ session, onRefresh }: { session: { name: string; user:
   const total = list.reduce((s, c) => s + c.valor, 0);
 
   const del = (id: number) => {
-        DB.set('custos_fixos', list.filter(c => c.id !== id));
+    if (!confirm('Excluir este custo fixo?')) return;
+    DB.set('custos_fixos', list.filter(c => c.id !== id));
     logAcesso('Excluiu custo fixo ID ' + id, session.name, session.user);
     syncFluxoGS(true);
     refresh();
@@ -563,20 +563,61 @@ function CustosFixosTab({ session, onRefresh }: { session: { name: string; user:
           session={session}
         />
       )}
-      <ConfirmModal
-        open={confirmDeleteId !== null}
-        title={confirmDeleteType === 'fluxo' ? 'Excluir Registro' : 'Excluir Custo Fixo'}
-        message="Este registro será removido do sistema e da planilha."
-        confirmLabel="Excluir"
-        onConfirm={() => {
-          if (confirmDeleteId !== null) {
-            if (confirmDeleteType === 'fluxo') delFluxo(confirmDeleteId);
-            else delCusto(confirmDeleteId);
-            setConfirmDeleteId(null);
-          }
-        }}
-        onCancel={() => setConfirmDeleteId(null)}
-      />
     </>
+  );
+}
+
+function CustoFixoModal({ editId, categorias, onClose, session }: {
+  editId: number | null; categorias: string[];
+  onClose: () => void; session: { name: string; user: string };
+}) {
+  const existing = editId ? DB.get<CustoFixo>('custos_fixos').find(c => c.id === editId) : null;
+  const [descricao, setDescricao] = useState(existing?.descricao || '');
+  const [valor, setValor] = useState(String(existing?.valor ?? ''));
+  const [categoria, setCategoria] = useState(existing?.categoria || '');
+  const [obs, setObs] = useState(existing?.obs || '');
+
+  const save = () => {
+    if (!descricao.trim()) { alert('Descrição obrigatória!'); return; }
+    if (!valor || Number(valor) <= 0) { alert('Valor deve ser maior que zero!'); return; }
+    const list = DB.get<CustoFixo>('custos_fixos');
+    const obj: CustoFixo = {
+      id: editId || nextId('custos_fixos'),
+      descricao: descricao.trim(), valor: Number(valor), categoria, obs,
+      cadastrado: new Date().toLocaleString('pt-BR'),
+    };
+    if (editId) { const i = list.findIndex(c => c.id === editId); if (i >= 0) list[i] = obj; else list.push(obj); }
+    else list.push(obj);
+    DB.set('custos_fixos', list);
+    logAcesso(`Custo fixo: ${descricao} R$${fmtMoney(Number(valor))}`, session.name, session.user);
+    syncFluxoGS(true);
+    onClose();
+  };
+
+  return (
+    <Modal open onClose={onClose} title={editId ? '✏️ Editar Custo Fixo' : '🧾 Novo Custo Fixo'} maxWidth="480px"
+      footer={<><Btn variant="outline" onClick={onClose}>Cancelar</Btn><Btn onClick={save}>💾 Salvar</Btn></>}>
+      <FormCard title="Dados do Custo Fixo">
+        <div className="flex gap-2.5 mb-2.5 flex-wrap">
+          <Field label="Descrição" required className="flex-[3] min-w-[160px]">
+            <Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex: Vale Alimentação" autoFocus />
+          </Field>
+          <Field label="Valor (R$)" required className="flex-1 min-w-[110px]">
+            <CurrencyInput value={valor} onChange={e => setValor(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex gap-2.5 flex-wrap">
+          <Field label="Categoria" className="flex-[2] min-w-[160px]">
+            <Select value={categoria} onChange={e => setCategoria(e.target.value)}>
+              <option value="">— Selecione —</option>
+              {categorias.map(c => <option key={c}>{c}</option>)}
+            </Select>
+          </Field>
+          <Field label="Observação" className="flex-[2] min-w-[150px]">
+            <Input value={obs} onChange={e => setObs(e.target.value)} placeholder="Opcional" />
+          </Field>
+        </div>
+      </FormCard>
+    </Modal>
   );
 }
