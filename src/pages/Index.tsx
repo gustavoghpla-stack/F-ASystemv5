@@ -54,7 +54,7 @@ export default function Index() {
     if (next !== 'dark') document.body.classList.add(next);
   };
 
-  // Loading screen while syncing sheets on login
+  // Loading screen while syncing sheets on login or session restore
   if (loading) {
     return (
       <div className="fixed inset-0 bg-background flex flex-col items-center justify-center gap-5 px-4">
@@ -66,9 +66,11 @@ export default function Index() {
         />
         <div className="text-center space-y-1.5">
           <div className="text-[16px] font-bold text-primary">
-            {loadingMsg || 'Carregando dados...'}
+            {loadingMsg || (session ? 'Restaurando sessão...' : 'Carregando dados...')}
           </div>
-          <div className="text-[12px] text-muted-foreground">Sincronizando com as planilhas Google</div>
+          <div className="text-[12px] text-muted-foreground">
+            Sincronizando com as planilhas Google
+          </div>
         </div>
         <div className="flex gap-1.5 mt-2">
           {[0,1,2].map(i => (

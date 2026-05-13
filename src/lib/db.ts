@@ -126,19 +126,19 @@ const EQUIPE_KEYS: DBKey[] = ['equipe_avaliacoes'];
 function scheduleAutoSync(key: DBKey) {
   if (RH_KEYS.includes(key)) {
     if (_syncTimer) clearTimeout(_syncTimer);
-    _syncTimer = setTimeout(() => { syncGS(true); }, 800);
+    _syncTimer = setTimeout(() => { syncGS(true); }, 500);
   }
   if (ESTOQUE_KEYS.includes(key)) {
     if (_syncEstoqueTimer) clearTimeout(_syncEstoqueTimer);
-    _syncEstoqueTimer = setTimeout(() => { syncEstoqueGS(true); }, 800);
+    _syncEstoqueTimer = setTimeout(() => { syncEstoqueGS(true); }, 500);
   }
   if (FLUXO_KEYS.includes(key)) {
     if (_syncFluxoTimer) clearTimeout(_syncFluxoTimer);
-    _syncFluxoTimer = setTimeout(() => { syncFluxoGS(true); }, 800);
+    _syncFluxoTimer = setTimeout(() => { syncFluxoGS(true); }, 500);
   }
   if (EQUIPE_KEYS.includes(key)) {
     if (_syncEquipeTimer) clearTimeout(_syncEquipeTimer);
-    _syncEquipeTimer = setTimeout(() => { syncEquipeGS(true); }, 800);
+    _syncEquipeTimer = setTimeout(() => { syncEquipeGS(true); }, 500);
   }
 }
 
@@ -338,6 +338,19 @@ function describeHttpError(status: number, sheetName: string): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Background refresh após gravação ────────────────────────────────────────
+// Chamado após cada sync bem-sucedido. Aguarda 1.5s (GAS processar)
+// e lê de volta todas as planilhas, notificando todas as páginas abertas.
+// Isso garante que outros usuários vejam as mudanças sem recarregar.
+let _bgRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+function _bgRefreshAfterSync() {
+  if (_bgRefreshTimer) clearTimeout(_bgRefreshTimer);
+  _bgRefreshTimer = setTimeout(async () => {
+    await loadAllFromGS();
+    _bgRefreshTimer = null;
+  }, 1500);
+}
+
 export async function syncGS(silent = false): Promise<boolean> {
   const url = (DB.getObj('config') || {}).gsUrl;
   if (!url) { if (!silent) alert('URL do Google Sheets não configurada!'); return false; }
@@ -354,7 +367,7 @@ export async function syncGS(silent = false): Promise<boolean> {
   };
   try {
     const result = await gsFetch(url, { method: 'POST', body: JSON.stringify(payload) });
-    if (result.ok) { if (!silent) alert('✅ Sincronização concluída!'); return true; }
+    if (result.ok) { if (!silent) alert('✅ Sincronização concluída!'); _bgRefreshAfterSync(); return true; }
     if (!silent) alert(describeHttpError(result.status, 'Funcionários/RH'));
     return false;
   } catch (err: any) {
@@ -376,7 +389,7 @@ export async function syncEstoqueGS(silent = false): Promise<boolean> {
   };
   try {
     const result = await gsFetch(url, { method: 'POST', body: JSON.stringify(payload) });
-    if (result.ok) { if (!silent) alert('✅ Estoque sincronizado!'); return true; }
+    if (result.ok) { if (!silent) alert('✅ Estoque sincronizado!'); _bgRefreshAfterSync(); return true; }
     if (!silent) alert(describeHttpError(result.status, 'Estoque/Abastecimento'));
     return false;
   } catch (err: any) {
@@ -491,7 +504,7 @@ export async function syncFluxoGS(silent = false): Promise<boolean> {
   };
   try {
     const result = await gsFetch(url, { method: 'POST', body: JSON.stringify(payload) });
-    if (result.ok) { if (!silent) alert('✅ Financeiro sincronizado!'); return true; }
+    if (result.ok) { if (!silent) alert('✅ Financeiro sincronizado!'); _bgRefreshAfterSync(); return true; }
     if (!silent) alert(describeHttpError(result.status, 'Financeiro')); return false;
   } catch (err: any) { if (!silent) alert('❌ Erro: ' + err.message); return false; }
 }
@@ -524,7 +537,7 @@ export async function syncEquipeGS(silent = false): Promise<boolean> {
   };
   try {
     const result = await gsFetch(url, { method: 'POST', body: JSON.stringify(payload) });
-    if (result.ok) { if (!silent) alert('✅ Equipe sincronizada!'); return true; }
+    if (result.ok) { if (!silent) alert('✅ Equipe sincronizada!'); _bgRefreshAfterSync(); return true; }
     if (!silent) alert(describeHttpError(result.status, 'Controle de Equipe')); return false;
   } catch (err: any) { if (!silent) alert('❌ Erro: ' + err.message); return false; }
 }

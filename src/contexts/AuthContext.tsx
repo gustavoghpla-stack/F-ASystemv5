@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { DB, logAcesso, initDefaultData, hashPassword, verifyPassword, isPasswordHash, loadAllFromGS, dispatchSyncComplete, type Usuario } from '@/lib/db';
+import { DB, logAcesso, initDefaultData, hashPassword, verifyPassword, isPasswordHash, loadAllFromGS, type Usuario } from '@/lib/db';
 
-// Intervalo de sincronização automática em background (60 segundos)
-const AUTO_SYNC_INTERVAL_MS = 60_000;
+// ── Configurações de sessão ───────────────────────────────────────────────────
+const AUTO_SYNC_INTERVAL_MS  = 30_000;       // sync a cada 30 segundos
+const SESSION_TIMEOUT_MS     = 60 * 60_000;  // deslogar após 1 hora
+const SESSION_STORAGE_KEY    = 'fa_session'; // chave no localStorage
 
 interface Session {
   user: string;
@@ -10,6 +12,62 @@ interface Session {
   nivel: string;
 }
 
+interface StoredSession extends Session {
+  loginAt: number; // timestamp do login
+}
+
+// ── Helpers de sessão persistente ────────────────────────────────────────────
+
+function saveSession(s: Session): void {
+  const stored: StoredSession = { ...s, loginAt: Date.now() };
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(stored));
+}
+
+function loadSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const stored: StoredSession = JSON.parse(raw);
+    // Verifica se a sessão ainda é válida (menos de 1 hora)
+    if (Date.now() - stored.loginAt > SESSION_TIMEOUT_MS) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      return null;
+    }
+    return { user: stored.user, name: stored.name, nivel: stored.nivel };
+  } catch {
+    return null;
+  }
+}
+
+function clearSession(): void {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function getSessionAge(): number {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return Infinity;
+    const stored: StoredSession = JSON.parse(raw);
+    return Date.now() - stored.loginAt;
+  } catch {
+    return Infinity;
+  }
+}
+
+// ── Busca usuários direto da planilha ────────────────────────────────────────
+async function fetchUsersFromGAS(): Promise<Usuario[]> {
+  try {
+    const url = DB.getObj('config').gsUrl;
+    if (!url) return [];
+    const res = await fetch(url + '?acao=get_all', { redirect: 'follow' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data.users)) return data.users as Usuario[];
+  } catch { /* noop */ }
+  return [];
+}
+
+// ── Context ───────────────────────────────────────────────────────────────────
 interface AuthContextType {
   session: Session | null;
   loading: boolean;
@@ -23,136 +81,145 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// ── Busca usuários direto da planilha (sem precisar estar logado) ─────────────
-async function fetchUsersFromGAS(): Promise<Usuario[]> {
-  try {
-    const cfg = DB.getObj('config');
-    const url = cfg.gsUrl;
-    if (!url) return [];
-    const res = await fetch(url + '?acao=get_all', { redirect: 'follow' });
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (data.users && Array.isArray(data.users)) return data.users as Usuario[];
-  } catch { /* noop */ }
-  return [];
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession]       = useState<Session | null>(null);
+  // Restaura sessão do localStorage ao montar (sobrevive a F5)
+  const [session, setSession]       = useState<Session | null>(() => loadSession());
   const [loading, setLoading]       = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [lastSync, setLastSync]     = useState<Date | null>(null);
   const [permissionsVersion, setPermissionsVersion] = useState(0);
   const refreshPermissions = useCallback(() => setPermissionsVersion(v => v + 1), []);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutCheckRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Background auto-sync: roda a cada 60s enquanto logado ───────────────────
+  // ── Ao restaurar sessão do localStorage → sincroniza com as planilhas ───────
+  useEffect(() => {
+    if (!session) return;
+    initDefaultData();
+    setLoadingMsg('Restaurando sessão...');
+    setLoading(true);
+    loadAllFromGS().then(() => {
+      setLoading(false);
+      setLastSync(new Date());
+    });
+  // Roda apenas uma vez ao montar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Auto-sync a cada 60s enquanto logado ─────────────────────────────────────
   useEffect(() => {
     if (!session) {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if (syncIntervalRef.current)  { clearInterval(syncIntervalRef.current);  syncIntervalRef.current  = null; }
+      if (timeoutCheckRef.current)  { clearInterval(timeoutCheckRef.current);  timeoutCheckRef.current  = null; }
       return;
     }
 
+    // Sync periódico
     const runSync = async () => {
-      // Só sincroniza se a aba está visível (economiza requisições)
       if (document.visibilityState === 'hidden') return;
       const result = await loadAllFromGS();
       if (result.ok) setLastSync(new Date());
     };
+    syncIntervalRef.current = setInterval(runSync, AUTO_SYNC_INTERVAL_MS);
 
-    intervalRef.current = setInterval(runSync, AUTO_SYNC_INTERVAL_MS);
+    // Verifica expiração de sessão a cada minuto
+    timeoutCheckRef.current = setInterval(() => {
+      const age = getSessionAge();
+      if (age > SESSION_TIMEOUT_MS) {
+        logAcesso('Sessão expirada (1h)', session.name, session.user);
+        clearSession();
+        setSession(null);
+      }
+    }, 60_000);
+
     return () => {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if (syncIntervalRef.current)  { clearInterval(syncIntervalRef.current);  syncIntervalRef.current  = null; }
+      if (timeoutCheckRef.current)  { clearInterval(timeoutCheckRef.current);  timeoutCheckRef.current  = null; }
     };
   }, [session]);
 
+  // ── Login ─────────────────────────────────────────────────────────────────────
   const login = useCallback(async (email: string, password: string): Promise<string | null> => {
     await initDefaultData();
 
-    // ── 1. Master login (verificação local — nunca depende da planilha) ─────
+    // 1. Master
     if (email.toLowerCase() === 'feaviplimpeza@gmail.com') {
       const cfg = DB.getObj('config');
-      const masterOk = cfg.masterPasswordHash
+      const ok  = cfg.masterPasswordHash
         ? await verifyPassword(password, cfg.masterPasswordHash)
         : false;
-      if (masterOk) {
+      if (ok) {
         const s = { user: 'master', name: 'Administrador Master', nivel: 'Master' };
         logAcesso('Login efetuado', s.name, s.user);
         setLoadingMsg('Sincronizando dados...');
         setLoading(true);
         await loadAllFromGS();
         setLoading(false);
+        saveSession(s);
         setSession(s);
+        setLastSync(new Date());
         return null;
       }
       return 'Usuário ou senha incorretos.';
     }
 
-    // ── 2. Verifica usuário no localStorage primeiro ──────────────────────────
+    // 2. Busca local
     let users = DB.get<Usuario>('users');
     let found = users.find(x => x.email.toLowerCase() === email.toLowerCase());
 
-    // ── 3. Se não encontrou localmente → busca da planilha antes de rejeitar ─
-    // Isso resolve o problema de outros dispositivos onde o localStorage
-    // está vazio mas o usuário existe na planilha Google.
+    // 3. Se não encontrou → busca na planilha
     if (!found) {
       setLoadingMsg('Verificando credenciais na planilha...');
       setLoading(true);
-      const remoteUsers = await fetchUsersFromGAS();
+      const remote = await fetchUsersFromGAS();
       setLoading(false);
-
-      if (remoteUsers.length > 0) {
-        // Salva usuários localmente para evitar nova busca
-        DB.setNoSync('users', remoteUsers);
-        users = remoteUsers;
+      if (remote.length > 0) {
+        DB.setNoSync('users', remote);
+        users = remote;
         found = users.find(x => x.email.toLowerCase() === email.toLowerCase());
       }
     }
 
-    // ── 4. Verifica senha do usuário encontrado ───────────────────────────────
+    // 4. Verifica senha
     if (found) {
-      let passwordOk = false;
+      if (!found.senha) return 'Conta sem senha configurada. Contate o administrador.';
 
-      if (!found.senha) {
-        // Conta sem senha cadastrada — não permite login
-        return 'Esta conta não possui senha configurada. Contate o administrador.';
-      }
-
+      let ok = false;
       if (isPasswordHash(found.senha)) {
-        // Senha em hash SHA-256 (padrão atual)
-        passwordOk = await verifyPassword(password, found.senha);
+        ok = await verifyPassword(password, found.senha);
       } else {
-        // Senha em texto puro (legado) — compara e migra para hash
-        passwordOk = found.senha === password;
-        if (passwordOk) {
-          const newHash = await hashPassword(password);
-          const updated = users.map(x => x.id === found!.id ? { ...x, senha: newHash } : x);
-          DB.setNoSync('users', updated);
+        ok = found.senha === password;
+        if (ok) {
+          const hash = await hashPassword(password);
+          DB.setNoSync('users', users.map(x => x.id === found!.id ? { ...x, senha: hash } : x));
         }
       }
 
-      if (passwordOk) {
+      if (ok) {
         const s = { user: found.email, name: found.nome, nivel: found.nivel };
         logAcesso('Login efetuado', s.name, s.user);
         setLoadingMsg('Sincronizando dados...');
         setLoading(true);
         await loadAllFromGS();
         setLoading(false);
+        saveSession(s);
         setSession(s);
+        setLastSync(new Date());
         return null;
       }
-
       return 'Senha incorreta.';
     }
 
     return 'Usuário não encontrado. Verifique o e-mail ou contate o administrador.';
   }, []);
 
+  // ── Logout manual ─────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
     setSession(prev => {
-      if (prev) logAcesso('Logout', prev.name, prev.user);
+      if (prev) logAcesso('Logout manual', prev.name, prev.user);
       return null;
     });
+    clearSession();
   }, []);
 
   return (

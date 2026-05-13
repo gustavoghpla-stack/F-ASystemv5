@@ -182,6 +182,7 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
                   🔄 {lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}
+              <SessionTimer />
             </div>
           )}
         </div>
@@ -233,6 +234,43 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
         </div>
       </div>
       <div className="flex-1 overflow-hidden flex flex-col bg-background">{children}</div>
+    </div>
+  );
+}
+
+// ── Componente de timer da sessão ─────────────────────────────────────────────
+// Mostra quanto tempo resta antes do logout automático (1h)
+function SessionTimer() {
+  const [remaining, setRemaining] = useState<string>('');
+
+  useEffect(() => {
+    const update = () => {
+      try {
+        const raw = localStorage.getItem('fa_session');
+        if (!raw) { setRemaining(''); return; }
+        const { loginAt } = JSON.parse(raw);
+        const elapsed = Date.now() - loginAt;
+        const left = 60 * 60_000 - elapsed;
+        if (left <= 0) { setRemaining(''); return; }
+        const mins = Math.floor(left / 60_000);
+        const secs = Math.floor((left % 60_000) / 1000);
+        // Só mostra quando restam menos de 10 minutos
+        if (mins < 10) {
+          setRemaining(`⏱ ${mins}:${String(secs).padStart(2,'0')}`);
+        } else {
+          setRemaining('');
+        }
+      } catch { setRemaining(''); }
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!remaining) return null;
+  return (
+    <div className="text-[7px] text-yellow-500/80 mt-0.5 font-semibold">
+      {remaining} p/ expirar
     </div>
   );
 }
