@@ -26,6 +26,7 @@ export interface Documento { id: number; desc: string; obrig: string; }
 export interface Usuario {
   id: number; nome: string; email: string; senha: string; nivel: string;
   foto: string; cadastrado: string;
+  permissions?: FeaturePerms; // permissões sincronizadas com a planilha
 }
 
 export interface AcessoLog { id: number; dt: string; nome: string; user: string; evento: string; }
@@ -68,9 +69,12 @@ export interface UserPermissions {
     funcionarios?: boolean; bancos?: boolean; escalas?: boolean; documentos?: boolean;
     usuarios?: boolean; estoque?: boolean; abastecimento?: boolean; fluxoCaixa?: boolean;
     relatorios?: boolean; config?: boolean; orcamento?: boolean;
-    certificado?: boolean; equipe?: boolean;
+    certificado?: boolean; equipe?: boolean; controleOleo?: boolean;
   };
 }
+
+// Permissions embedded directly in the user object so they sync across devices
+export type FeaturePerms = UserPermissions[string];
 
 export interface EmpresaConfig {
   nome: string; cnpj: string; endereco: string; telefone: string;
@@ -320,14 +324,24 @@ export function logAcesso(evento: string, nome: string, user: string) {
  */
 export function hasPermission(userEmail: string, userNivel: string, feature: string): boolean {
   if (userNivel === 'Master') return true;
+
+  // 1. Check user's own permissions object (synced via planilha — works across all devices)
+  const users = DB.get<Usuario>('users');
+  const user  = users.find(u => u.email.toLowerCase() === userEmail.toLowerCase());
+  if (user?.permissions) {
+    const val = user.permissions[feature as keyof FeaturePerms];
+    if (val !== undefined) return val as boolean;
+    // undefined = not set for this feature → fall through to config
+  }
+
+  // 2. Fallback: check local config.userPermissions (legacy / master's own device)
   const config = DB.getObj('config');
-  const perms = config.userPermissions?.[userEmail];
-  // No explicit permissions set → allowed by default (all features on)
-  if (!perms) return true;
-  const val = perms[feature as keyof typeof perms];
-  // Undefined (not set) = allowed; only explicit false blocks access
-  if (val === undefined) return true;
-  return val as boolean;
+  const perms  = config.userPermissions?.[userEmail]
+    ?? config.userPermissions?.[userEmail.toLowerCase()];
+  if (!perms) return true; // no restrictions = full access
+  const cfgVal = perms[feature as keyof typeof perms];
+  if (cfgVal === undefined) return true;
+  return cfgVal as boolean;
 }
 
 // ─── HTTP fetch (native browser fetch — works on https:// without proxy) ─────

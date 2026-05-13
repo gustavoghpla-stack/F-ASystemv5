@@ -6,6 +6,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleLogin = async () => {
@@ -39,9 +40,16 @@ export default function LoginScreen() {
         </div>
         <div className="mb-4">
           <label className="block text-[10px] font-bold tracking-[1.5px] text-muted-foreground uppercase mb-1.5">🔒 Senha</label>
-          <input id="loginPass" type="password" value={password} onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLogin()} placeholder="••••••••"
-            className="w-full p-[11px_14px] bg-card border border-border text-foreground rounded-md outline-none text-[13px] transition-all focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--gold-glow))]" />
+          <div className="relative">
+            <input id="loginPass" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleLogin()} placeholder="••••••••"
+              className="w-full p-[11px_44px_11px_14px] bg-card border border-border text-foreground rounded-md outline-none text-[13px] transition-all focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--gold-glow))]" />
+            <button type="button" onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary text-[16px] transition-colors select-none"
+              tabIndex={-1}>
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
         </div>
         <button onClick={handleLogin}
           className="w-full p-[13px] mt-2.5 bg-gradient-to-br from-gold-dark to-primary text-primary-foreground font-bold text-[15px] tracking-[2.5px] font-heading rounded-md transition-all hover:opacity-90 hover:-translate-y-px">

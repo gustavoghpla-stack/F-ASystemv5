@@ -57,19 +57,28 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
   const userEmail = session?.user || '';
 
   const navItems = useMemo(() => {
-    const userPerms = DB.getObj('config').userPermissions?.[userEmail] ?? {};
+    // Read synced permissions from user object (travels with planilha sync — works on all devices)
+    const users = DB.get<any>('users');
+    const user  = users.find((u: any) => u.email?.toLowerCase() === userEmail.toLowerCase());
+    const syncedPerms = (user?.permissions ?? {}) as Record<string, boolean | undefined>;
+    // Fallback: local config perms (legacy, master's device only)
+    const localPerms = (DB.getObj('config').userPermissions?.[userEmail] ?? {}) as Record<string, boolean | undefined>;
+
+    const isAllowed = (feature: string): boolean => {
+      if (feature in syncedPerms) return syncedPerms[feature] !== false;
+      if (feature in localPerms)  return localPerms[feature]  !== false;
+      return true; // default: allow
+    };
+
     return allNavItems.filter(item => {
       if (item.masterOnly) return userNivel === 'Master';
       if (userNivel === 'Master') return true;
-      if (item.feature) {
-        const val = userPerms[item.feature as keyof typeof userPerms];
-        return val !== false;
-      }
+      if (item.feature) return isAllowed(item.feature);
       return true;
     });
   }, [userNivel, userEmail, permissionsVersion]);
 
-  // Bottom nav quick items for mobile (most used)
+  // Bottom nav derived from already-filtered navItems — respects permissions automatically
   const bottomNavItems = navItems.filter(i =>
     ['menu','funcionarios','estoque','fluxo-caixa','equipe'].includes(i.id)
   ).slice(0, 5);

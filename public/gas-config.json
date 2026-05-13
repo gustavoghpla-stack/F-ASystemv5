@@ -1,8 +1,8 @@
 {
-  "gsUrl":       "https://script.google.com/macros/s/AKfycbzBv7mnCleExeq-x2fCIKfCygXlLCF54ZAD-EL9zAPR4kumLC1NJ3_cWoQQHGSlPiskWg/exec",
-  "gsUrlEstoque":"https://script.google.com/macros/s/AKfycbx1qIGMjPOuznEBHbOlmNVL73wj0GKr-sWcj8ZMeATROLtPdyCzXMrRiAl04_53G3ikmw/exec",
-  "gsUrlFluxo":  "https://script.google.com/macros/s/AKfycbxjjZWOW8fG03Y9M4qp4S3U9Q_re5BzlOOioVLqq0ldsTBmNZmS2DEAEVaBTfI9JSHy/exec",
-  "gsUrlEquipe": "https://script.google.com/macros/s/AKfycbxcqrA4qXlzzXn-t2aXAFH9oRaN3VmgjySMhSyWk_adjrwKkSqieHOK_m73Z6LMJihGnw/exec",
+  "gsUrl":       "https://script.google.com/macros/s/AKfycbxznq-7nsau1_mS7JTu8njGxxZfT7mkrb-sFNFrOGc69DnZ-y41CjLn0xNM5yGIikB-dg/exec",
+  "gsUrlEstoque":"https://script.google.com/macros/s/AKfycbyJeFVZbQPkzhuSxt7tgbqCTm3MpApTWW_q9AOv6PqaqQpEkYqcA6q5CdX0EPfF-nGb0Q/exec",
+  "gsUrlFluxo":  "https://script.google.com/macros/s/AKfycbyfgvmZFGNlm3OjNOAeSOvXOg_KW1rmGNWQdfVEkNHDkHfHIvWxtYgS2hvaO5Qw2Bg/exec",
+  "gsUrlEquipe": "https://script.google.com/macros/s/AKfycbzksTnbbooIKyNwWzrTGf3XrtXNnDnLlS_3Qlg9IYyB3dQMm-tNJcqJRR05G1JtjZ-Q5Q/exec",
   "_version": "1",
   "_updated": "2026-05-12"
 }

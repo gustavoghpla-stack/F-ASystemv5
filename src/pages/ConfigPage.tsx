@@ -505,23 +505,63 @@ function UserPermissionsManager() {
   const perms: UserPermissions = config.userPermissions || {};
 
   const togglePerm = (email: string, feature: string) => {
+    // 1. Update local config.userPermissions (for master's current session)
     const cfg = DB.getObj('config');
     if (!cfg.userPermissions) cfg.userPermissions = {};
     if (!cfg.userPermissions[email]) cfg.userPermissions[email] = {};
     const current = cfg.userPermissions[email][feature as keyof typeof cfg.userPermissions[typeof email]];
-    cfg.userPermissions[email][feature as keyof typeof cfg.userPermissions[typeof email]] =
-      current === false ? true : (current === undefined ? false : !current);
+    const newVal: boolean = current === false ? true : (current === undefined ? false : !current);
+    cfg.userPermissions[email][feature as keyof typeof cfg.userPermissions[typeof email]] = newVal;
     DB.setObj('config', cfg);
-    // Notify AppLayout to recompute navItems immediately
+
+    // 2. CRITICAL: Also save into the user object itself so it syncs to planilha
+    // and other devices get the permissions automatically on next sync
+    const usersList = DB.get<any>('users');
+    const idx = usersList.findIndex((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    if (idx >= 0) {
+      if (!usersList[idx].permissions) usersList[idx].permissions = {};
+      usersList[idx].permissions[feature] = newVal;
+      DB.set('users', usersList); // triggers auto-sync to planilha in 500ms
+    }
+
     refreshPermissions();
     setTick(t => t + 1);
   };
 
   const getPermValue = (email: string, feature: string): boolean => {
+    // Synced permissions (user object) take priority
+    const usersList = DB.get<any>('users');
+    const user = usersList.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    if (user?.permissions && feature in user.permissions) {
+      return user.permissions[feature] !== false;
+    }
+    // Fallback to local config
     const p = perms[email];
     if (!p) return true;
     const v = p[feature as keyof typeof p];
     return v === undefined ? true : v;
+  };
+
+  const setAllPerms = (email: string, value: boolean) => {
+    const cfg = DB.getObj('config');
+    if (!cfg.userPermissions) cfg.userPermissions = {};
+    if (!cfg.userPermissions[email]) cfg.userPermissions[email] = {};
+    ALL_FEATURES.forEach(f => {
+      cfg.userPermissions![email][f.key as keyof typeof cfg.userPermissions[typeof email]] = value;
+    });
+    DB.setObj('config', cfg);
+
+    // Also update user object for cross-device sync
+    const usersList = DB.get<any>('users');
+    const idx = usersList.findIndex((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    if (idx >= 0) {
+      usersList[idx].permissions = {};
+      ALL_FEATURES.forEach(f => { usersList[idx].permissions[f.key] = value; });
+      DB.set('users', usersList);
+    }
+
+    refreshPermissions();
+    setTick(t => t + 1);
   };
 
   if (!users.length) return null;
@@ -533,12 +573,21 @@ function UserPermissionsManager() {
       </p>
       {users.map(u => (
         <div key={u.id} className="mb-4 last:mb-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <div className="w-6 h-6 rounded-full bg-gold-deep flex items-center justify-center text-[9px] font-bold text-primary-foreground overflow-hidden">
               {u.foto ? <img src={u.foto} className="w-full h-full object-cover" /> : u.nome?.[0]?.toUpperCase()}
             </div>
             <span className="text-[12px] font-bold">{u.nome}</span>
             <Badge variant={u.nivel === 'Administrador' ? 'gold' : u.nivel === 'Estoquista' ? 'info' : 'success'}>{u.nivel}</Badge>
+            <span className="flex-1" />
+            <button onClick={() => setAllPerms(u.email, false)}
+              className="text-[9px] font-bold px-2 py-1 rounded-lg bg-destructive/20 text-destructive border border-destructive/30 hover:bg-destructive/30">
+              🔒 Desabilitar tudo
+            </button>
+            <button onClick={() => setAllPerms(u.email, true)}
+              className="text-[9px] font-bold px-2 py-1 rounded-lg bg-success/20 text-success border border-success/30 hover:bg-success/30">
+              🔓 Habilitar tudo
+            </button>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5">
             {ALL_FEATURES.map(f => {
