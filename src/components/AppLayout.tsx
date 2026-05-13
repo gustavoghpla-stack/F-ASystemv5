@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { DB } from '@/lib/db';
+import { DB, onSyncComplete } from '@/lib/db';
 import logoImg from '@/assets/logo.png';
 
 interface NavItem {
@@ -36,10 +36,14 @@ interface Props {
 }
 
 export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme, children }: Props) {
-  const { session, logout, permissionsVersion, lastSync } = useAuth();
+  const { session, logout, permissionsVersion, refreshPermissions, lastSync } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Re-compute navItems whenever a background sync completes and brings
+  // updated user permissions from the planilha.
+  useEffect(() => onSyncComplete(refreshPermissions), [refreshPermissions]);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);

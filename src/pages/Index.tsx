@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { hasPermission } from '@/lib/db';
+import { hasPermission, onSyncComplete } from '@/lib/db';
 import LoginScreen from '@/components/LoginScreen';
 import bacamarteLogoImg from '@/assets/bacamarte-logo.png';
 import AppLayout from '@/components/AppLayout';
@@ -43,7 +43,9 @@ const PAGE_FEATURE: Record<string, string> = {
 };
 
 export default function Index() {
-  const { session, loading, loadingMsg, permissionsVersion } = useAuth();
+  const { session, loading, loadingMsg, permissionsVersion, refreshPermissions } = useAuth();
+  // Re-evaluate page access whenever a sync brings updated permissions
+  useEffect(() => onSyncComplete(refreshPermissions), [refreshPermissions]);
   const [currentPage, setCurrentPage] = useState('menu');
   const [theme, setTheme] = useState<'dark' | 'light' | 'orange'>('dark');
 
