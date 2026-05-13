@@ -62,9 +62,17 @@ async function fetchUsersFromGAS(): Promise<Usuario[]> {
     const res = await fetch(url + '?acao=get_all', { redirect: 'follow' });
     if (!res.ok) return [];
     const data = await res.json();
-    if (Array.isArray(data.users)) return data.users as Usuario[];
-  } catch { /* noop */ }
-  return [];
+    if (!Array.isArray(data.users)) return [];
+    // Deserialize permissions_json → permissions object
+    return data.users.map((u: any) => {
+      const parsed = { ...u };
+      if (u.permissions_json && typeof u.permissions_json === 'string' && u.permissions_json.startsWith('{')) {
+        try { parsed.permissions = JSON.parse(u.permissions_json); } catch { /* noop */ }
+      }
+      delete parsed.permissions_json;
+      return parsed as Usuario;
+    });
+  } catch { return []; }
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────

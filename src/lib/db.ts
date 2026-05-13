@@ -322,26 +322,52 @@ export function logAcesso(evento: string, nome: string, user: string) {
  * - Outros: só libera quando o toggle correspondente for explicitamente true.
  *   Default = NEGADO (admin libera manualmente em Configurações → Permissões).
  */
+// Safe: converts any value to a plain permissions object.
+// Handles string, GAS Java-style "{key=value,...}", or plain object.
+function _toPermObj(raw: any): Record<string, boolean | undefined> {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    // Try JSON first
+    try {
+      const p = JSON.parse(raw);
+      if (typeof p === 'object' && !Array.isArray(p)) return p;
+    } catch { /* noop */ }
+    // Handle GAS Java Map toString: "{key=value, key2=value2}"
+    try {
+      const obj: Record<string, boolean> = {};
+      raw.replace(/^\{/, '').replace(/\}$/, '').split(',').forEach((pair: string) => {
+        const eqIdx = pair.indexOf('=');
+        if (eqIdx < 0) return;
+        const k = pair.slice(0, eqIdx).trim();
+        const v = pair.slice(eqIdx + 1).trim();
+        if (k) obj[k] = v !== 'false';
+      });
+      return obj;
+    } catch { /* noop */ }
+  }
+  return {};
+}
+
 export function hasPermission(userEmail: string, userNivel: string, feature: string): boolean {
   if (userNivel === 'Master') return true;
 
-  // 1. Check user's own permissions object (synced via planilha — works across all devices)
+  // 1. Synced permissions from user object (travels with planilha — all devices)
   const users = DB.get<Usuario>('users');
-  const user  = users.find(u => u.email.toLowerCase() === userEmail.toLowerCase());
-  if (user?.permissions) {
-    const val = user.permissions[feature as keyof FeaturePerms];
-    if (val !== undefined) return val as boolean;
-    // undefined = not set for this feature → fall through to config
+  const user  = users.find(u => (u.email || '').toLowerCase() === userEmail.toLowerCase());
+  if (user?.permissions !== undefined) {
+    const p = _toPermObj(user.permissions);
+    if (feature in p) return p[feature] !== false;
   }
 
-  // 2. Fallback: check local config.userPermissions (legacy / master's own device)
+  // 2. Fallback: local config.userPermissions
   const config = DB.getObj('config');
-  const perms  = config.userPermissions?.[userEmail]
-    ?? config.userPermissions?.[userEmail.toLowerCase()];
-  if (!perms) return true; // no restrictions = full access
-  const cfgVal = perms[feature as keyof typeof perms];
-  if (cfgVal === undefined) return true;
-  return cfgVal as boolean;
+  const cfgPerms = _toPermObj(
+    config.userPermissions?.[userEmail] ?? config.userPermissions?.[userEmail.toLowerCase()]
+  );
+  if (feature in cfgPerms) return cfgPerms[feature] !== false;
+
+  return true; // default: allow
 }
 
 // ─── HTTP fetch (native browser fetch — works on https:// without proxy) ─────
@@ -392,14 +418,21 @@ export async function syncGS(silent = false): Promise<boolean> {
   const url = (DB.getObj('config') || {}).gsUrl;
   if (!url) { if (!silent) alert('URL do Google Sheets não configurada!'); return false; }
 
-  // Send full user object including senha (hashed) so login works on other devices
+  // Serialize permissions object to JSON string so Google Sheets stores it correctly.
+  // Google Sheets cannot store nested objects - they become "[object Object]".
+  const usersToSync = DB.get<Usuario>('users').map(u => ({
+    ...u,
+    permissions: undefined,
+    permissions_json: u.permissions ? JSON.stringify(u.permissions) : '',
+  }));
+
   const payload = {
     acao: 'sync_all',
     func: DB.get<Funcionario>('func'),
     bancos: DB.get<BancoRegistro>('bancos'),
     escalas: DB.get<Escala>('escalas'),
     docs: DB.get<Documento>('docs'),
-    users: DB.get<Usuario>('users'),
+    users: usersToSync,
     fluxo_caixa: DB.get<FluxoCaixaRegistro>('fluxo_caixa'),
   };
   try {
@@ -503,6 +536,45 @@ export async function testEquipeGSConnection(): Promise<boolean> {
   } catch (err: any) { alert('❌ Erro: ' + err.message); return false; }
 }
 
+
+// Deserializes permissions_json string back to permissions object after loading from GAS
+function parseUsersPermissions(users: any[]): any[] {
+  if (!users || !Array.isArray(users)) return users;
+  return users.map(u => {
+    const parsed = { ...u };
+    const raw = u.permissions_json;
+    if (raw && typeof raw === 'string') {
+      // Try JSON format: {"key":false,...}
+      if (raw.startsWith('{') || raw.startsWith('"')) {
+        try {
+          const obj = JSON.parse(raw);
+          if (typeof obj === 'object' && !Array.isArray(obj)) {
+            parsed.permissions = obj;
+            delete parsed.permissions_json;
+            return parsed;
+          }
+        } catch { /* fall through */ }
+      }
+      // Handle GAS Java Map toString: {key=value,...}
+      try {
+        const obj: Record<string, boolean> = {};
+        raw.replace(/^\{/, '').replace(/\}$/, '').split(',').forEach(pair => {
+          const eqIdx = pair.indexOf('=');
+          if (eqIdx < 0) return;
+          const k = pair.slice(0, eqIdx).trim();
+          const v = pair.slice(eqIdx + 1).trim();
+          if (k) obj[k] = v !== 'false';
+        });
+        if (Object.keys(obj).length > 0) {
+          parsed.permissions = obj;
+        }
+      } catch { /* noop */ }
+    }
+    delete parsed.permissions_json;
+    return parsed;
+  });
+}
+
 export async function loadFromGS(silent = false): Promise<boolean> {
   const url = (DB.getObj('config') || {}).gsUrl;
   if (!url) { if (!silent) alert('URL do Google Sheets não configurada!'); return false; }
@@ -518,7 +590,7 @@ export async function loadFromGS(silent = false): Promise<boolean> {
     if (data.bancos) DB.setNoSync('bancos', data.bancos);
     if (data.escalas) DB.setNoSync('escalas', data.escalas);
     if (data.docs) DB.setNoSync('docs', data.docs);
-    if (data.users) DB.setNoSync('users', data.users);
+    if (data.users) DB.setNoSync('users', parseUsersPermissions(data.users));
     if (data.fluxo_caixa) DB.setNoSync('fluxo_caixa', data.fluxo_caixa);
     if (!silent) alert('✅ Dados carregados da planilha!');
     window.location.reload();
@@ -650,7 +722,7 @@ export async function loadAllFromGS(): Promise<{ ok: boolean; errors: string[] }
           if (d.bancos)      DB.setNoSync('bancos',      d.bancos);
           if (d.escalas)     DB.setNoSync('escalas',     d.escalas);
           if (d.docs)        DB.setNoSync('docs',        d.docs);
-          if (d.users)       DB.setNoSync('users',       d.users);
+          if (d.users)       DB.setNoSync('users',       parseUsersPermissions(d.users));
           if (d.fluxo_caixa) DB.setNoSync('fluxo_caixa', d.fluxo_caixa);
         } else {
           errors.push('RH: HTTP ' + r.status);

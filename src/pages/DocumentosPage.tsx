@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DB, nextId, type Documento , onSyncComplete } from '@/lib/db';
-import { PageHeader, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
+import { PageHeader, TableWrapper, Th, Td, Badge, Btn, Modal, FormCard, Field, Input, Select , ConfirmModal } from '@/components/ui-custom';
 
 function printListaDocumentos(docs: Documento[]) {
   const win = window.open('', '_blank', 'width=900,height=700');
@@ -17,12 +17,12 @@ export default function DocumentosPage() {
   const [, setTick] = useState(0);
   const refresh = () => setTick(t => t + 1);
   useEffect(() => onSyncComplete(refresh), []);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const list = DB.get<Documento>('docs').filter(d => !search || d.desc?.toLowerCase().includes(search.toLowerCase()));
 
   const del = (id: number) => {
-    if (!confirm('Excluir este documento?')) return;
-    DB.set('docs', DB.get<Documento>('docs').filter(x => x.id !== id));
+        DB.set('docs', DB.get<Documento>('docs').filter(x => x.id !== id));
     refresh();
   };
 
@@ -43,7 +43,7 @@ export default function DocumentosPage() {
                 <Td>
                   <div className="flex gap-1">
                     <Btn size="sm" variant="outline" onClick={() => { setEditId(d.id); setModalOpen(true); }}>✏️</Btn>
-                    <Btn size="sm" variant="danger" onClick={() => del(d.id)}>🗑</Btn>
+                    <Btn size="sm" variant="danger" onClick={() => setConfirmDeleteId(d.id)}>🗑</Btn>
                   </div>
                 </Td>
               </tr>
@@ -53,36 +53,14 @@ export default function DocumentosPage() {
         </TableWrapper>
       </div>
       {modalOpen && <DocModal editId={editId} onClose={() => { setModalOpen(false); refresh(); }} />}
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Excluir Documento"
+        message="Este documento será removido do sistema e da planilha."
+        confirmLabel="Excluir"
+        onConfirm={() => { if (confirmDeleteId !== null) { del(confirmDeleteId); setConfirmDeleteId(null); } }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </>
-  );
-}
-
-function DocModal({ editId, onClose }: { editId: number | null; onClose: () => void }) {
-  const existing = editId ? DB.get<Documento>('docs').find(x => x.id === editId) : null;
-  const [desc, setDesc] = useState(existing?.desc || '');
-  const [obrig, setObrig] = useState(existing?.obrig || 'Sim');
-
-  const save = () => {
-    if (!desc.trim()) { alert('Descrição obrigatória!'); return; }
-    const list = DB.get<Documento>('docs');
-    const obj: Documento = { id: editId || nextId('docs'), desc: desc.trim(), obrig };
-    if (editId) { const i = list.findIndex(x => x.id === editId); if (i >= 0) list[i] = obj; else list.push(obj); }
-    else list.push(obj);
-    DB.set('docs', list);
-    onClose();
-  };
-
-  return (
-    <Modal open onClose={onClose} title={editId ? '✏️ Editar Documento' : '📄 Novo Documento'} maxWidth="520px"
-      footer={<><Btn variant="outline" onClick={onClose}>Cancelar</Btn><Btn onClick={save}>💾 Salvar</Btn></>}>
-      <FormCard title="Documento para Contratação">
-        <Field label="Descrição" required className="w-full mb-2.5">
-          <Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Ex: Cópia do CPF" />
-        </Field>
-        <Field label="Obrigatório?" className="w-48">
-          <Select value={obrig} onChange={e => setObrig(e.target.value)}><option>Sim</option><option>Não</option></Select>
-        </Field>
-      </FormCard>
-    </Modal>
   );
 }

@@ -61,21 +61,49 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
   const userEmail = session?.user || '';
 
   const navItems = useMemo(() => {
-    // Read synced permissions from user object (travels with planilha sync — works on all devices)
+    // Helper: safely extract a plain permissions object from any value
+    const toPermsObj = (raw: any): Record<string, boolean | undefined> => {
+      if (!raw) return {};
+      if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+      // Handle string: could be JSON string or GAS-style "{key=value,...}"
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        } catch { /* noop */ }
+        // Fallback: parse GAS Java-style "{key=value,...}" format
+        try {
+          const cleaned = raw.replace(/^\{/, '').replace(/\}$/, '');
+          const obj: Record<string, boolean> = {};
+          cleaned.split(',').forEach(pair => {
+            const [k, v] = pair.split('=').map(s => s.trim());
+            if (k) obj[k] = v === 'false' ? false : v === 'true' ? true : Boolean(v);
+          });
+          return obj;
+        } catch { /* noop */ }
+      }
+      return {};
+    };
+
     const users = DB.get<any>('users');
     const user  = users.find((u: any) => u.email?.toLowerCase() === userEmail.toLowerCase());
-    const syncedPerms = (user?.permissions ?? {}) as Record<string, boolean | undefined>;
-    // Fallback: local config perms (legacy, master's device only)
-    const localPerms = (DB.getObj('config').userPermissions?.[userEmail] ?? {}) as Record<string, boolean | undefined>;
+    const syncedPerms = toPermsObj(user?.permissions);
+    const localPerms  = toPermsObj(DB.getObj('config').userPermissions?.[userEmail]);
 
     const isAllowed = (feature: string): boolean => {
-      if (feature in syncedPerms) return syncedPerms[feature] !== false;
-      if (feature in localPerms)  return localPerms[feature]  !== false;
+      // Check synced (planilha) permissions first
+      const synced = syncedPerms[feature];
+      if (synced !== undefined) return synced !== false;
+      // Fallback to local config
+      const local = localPerms[feature];
+      if (local !== undefined) return local !== false;
       return true; // default: allow
     };
 
     return allNavItems.filter(item => {
+      // masterOnly items (Config, Debug, Rel-Acessos) ALWAYS visible to Master — never blocked
       if (item.masterOnly) return userNivel === 'Master';
+      // Master sees everything regardless of permission toggles
       if (userNivel === 'Master') return true;
       if (item.feature) return isAllowed(item.feature);
       return true;

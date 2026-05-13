@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { DB, nextId, fmtDate, syncEquipeGS, verifyPassword, type Funcionario, type AvaliacaoRegistro, MESES , onSyncComplete } from '@/lib/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAcesso } from '@/lib/db';
-import { PageHeader, Btn, Modal, FormCard, Field, Input, Select } from '@/components/ui-custom';
+import { PageHeader, Btn, Modal, FormCard, Field, Input, Select , ConfirmModal } from '@/components/ui-custom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const MOTIVOS = [
@@ -532,8 +532,7 @@ function DetailModal({ funcId, func, avaliacoes, onClose, onNewReg, session, onR
     .sort((a, b) => stats.motivoCounts[b.key] - stats.motivoCounts[a.key]);
 
   const del = (id: number) => {
-    if (!confirm('Excluir este registro?')) return;
-    DB.set('equipe_avaliacoes', DB.get<AvaliacaoRegistro>('equipe_avaliacoes').filter(a => a.id !== id));
+        DB.set('equipe_avaliacoes', DB.get<AvaliacaoRegistro>('equipe_avaliacoes').filter(a => a.id !== id));
     syncEquipeGS(true);
     onRefresh();
     onClose();
