@@ -91,13 +91,12 @@ export default function AppLayout({ currentPage, onNavigate, theme, onCycleTheme
     const localPerms  = toPermsObj(DB.getObj('config').userPermissions?.[userEmail]);
 
     const isAllowed = (feature: string): boolean => {
-      // Check synced (planilha) permissions first
-      const synced = syncedPerms[feature];
-      if (synced !== undefined) return synced !== false;
-      // Fallback to local config
-      const local = localPerms[feature];
-      if (local !== undefined) return local !== false;
-      return true; // default: allow
+      // Default DENY: só libera quando o toggle está explicitamente true.
+      // Garante que o menu mobile (drawer + bottom nav) respeite as
+      // permissões de usuário, idêntico à intenção documentada em db.ts.
+      if (syncedPerms[feature] === true) return true;
+      if (localPerms[feature]  === true) return true;
+      return false;
     };
 
     return allNavItems.filter(item => {

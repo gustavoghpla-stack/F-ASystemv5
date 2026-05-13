@@ -367,7 +367,7 @@ export function hasPermission(userEmail: string, userNivel: string, feature: str
   );
   if (feature in cfgPerms) return cfgPerms[feature] !== false;
 
-  return true; // default: allow
+  return false; // default: DENY (admin libera explicitamente em Configurações → Permissões)
 }
 
 // ─── HTTP fetch (native browser fetch — works on https:// without proxy) ─────
