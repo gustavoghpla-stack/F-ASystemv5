@@ -30,6 +30,7 @@ export default function ConfigPage() {
   const [gsUrlEstoque, setGsUrlEstoque] = useState(config.gsUrlEstoque || '');
   const [gsUrlFluxo, setGsUrlFluxo] = useState(config.gsUrlFluxo || '');
   const [gsUrlEquipe, setGsUrlEquipe] = useState(config.gsUrlEquipe || '');
+  const [gasConfigMode, setGasConfigMode] = useState<'auto' | 'manual'>(config.gasConfigMode ?? 'auto');
 
   // Empresa defaults
   const DEFAULT_EMP: EmpresaConfig = { nome: 'F&A Higienizações', cnpj: '46.649.584/0001-21', endereco: '', telefone: '', email: '', instagram: 'https://bit.ly/3VfGNMv' };
@@ -71,6 +72,26 @@ export default function ConfigPage() {
   const saveUrlEstoque = () => { const cfg = DB.getObj('config'); cfg.gsUrlEstoque = gsUrlEstoque.trim(); DB.setObj('config', cfg); alert('URL de estoque salva!'); };
   const saveUrlFluxo = () => { const cfg = DB.getObj('config'); cfg.gsUrlFluxo = gsUrlFluxo.trim(); DB.setObj('config', cfg); alert('URL financeira salva!'); };
   const saveUrlEquipe = () => { const cfg = DB.getObj('config'); cfg.gsUrlEquipe = gsUrlEquipe.trim(); DB.setObj('config', cfg); alert('URL de equipe salva!'); };
+
+  const toggleGasMode = async (mode: 'auto' | 'manual') => {
+    setGasConfigMode(mode);
+    const cfg = DB.getObj('config');
+    cfg.gasConfigMode = mode;
+    DB.setObj('config', cfg);
+    if (mode === 'auto') {
+      const ok = await fetchRemoteGasConfig();
+      if (ok) {
+        const updated = DB.getObj('config');
+        setGsUrl(updated.gsUrl || '');
+        setGsUrlEstoque(updated.gsUrlEstoque || '');
+        setGsUrlFluxo(updated.gsUrlFluxo || '');
+        setGsUrlEquipe(updated.gsUrlEquipe || '');
+        alert('✅ URLs atualizadas do servidor central!');
+      } else {
+        alert('⚠️ Não foi possível buscar a configuração central. Verifique a conexão.');
+      }
+    }
+  };
 
   const saveEmpresa = () => { const cfg = DB.getObj('config'); cfg.empresaConfig = empresa; DB.setObj('config', cfg); alert('✅ Dados da empresa salvos!'); };
   const saveCert = () => { const cfg = DB.getObj('config'); cfg.certificadoConfig = certCfg; DB.setObj('config', cfg); alert('✅ Dados do certificado salvos!'); };
@@ -253,58 +274,133 @@ export default function ConfigPage() {
             </div>
           ) : (
             <>
-              <div className="flex gap-2.5 mb-3 flex-wrap items-end">
-                <Field label="URL do Google Apps Script (Funcionários)" className="flex-1 min-w-[300px]">
-                  <Input value={gsUrl} onChange={e => setGsUrl(e.target.value)} placeholder="https://script.google.com/macros/s/SEU_SCRIPT/exec" />
-                </Field>
+              {/* ── Toggle Auto / Manual ── */}
+              <div className="flex items-center justify-between bg-secondary border border-border rounded-xl px-4 py-3 mb-4">
+                <div>
+                  <div className="text-[13px] font-bold text-foreground">URLs das Planilhas</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {gasConfigMode === 'auto'
+                      ? '🔄 Automático — URLs buscadas do servidor central (git push atualiza todos os dispositivos)'
+                      : '✏️ Manual — URLs salvas apenas neste dispositivo'}
+                  </div>
+                </div>
+                {/* Toggle switch */}
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <span className={`text-[10px] font-semibold ${gasConfigMode === 'manual' ? 'text-primary' : 'text-muted-foreground'}`}>Manual</span>
+                  <button
+                    onClick={() => toggleGasMode(gasConfigMode === 'auto' ? 'manual' : 'auto')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${gasConfigMode === 'auto' ? 'bg-primary' : 'bg-muted'}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${gasConfigMode === 'auto' ? 'left-7' : 'left-1'}`} />
+                  </button>
+                  <span className={`text-[10px] font-semibold ${gasConfigMode === 'auto' ? 'text-primary' : 'text-muted-foreground'}`}>Auto</span>
+                </div>
               </div>
-              <div className="flex gap-2 flex-wrap mb-4">
-                <Btn onClick={saveUrl}>💾 Salvar URL</Btn>
-                <Btn variant="info" onClick={() => syncGS()}>📤 Enviar para Planilha</Btn>
-                <Btn variant="success" onClick={() => loadFromGS()}>📥 Carregar da Planilha</Btn>
-                <Btn variant="outline" onClick={() => testGSConnection()}>🔗 Testar Conexão</Btn>
-              </div>
-              <div className="h-px bg-border my-4" />
-              <div className="flex gap-2.5 mb-3 flex-wrap items-end">
-                <Field label="URL da Planilha de Estoque/Abastecimento" className="flex-1 min-w-[300px]">
-                  <Input value={gsUrlEstoque} onChange={e => setGsUrlEstoque(e.target.value)} placeholder="https://script.google.com/macros/s/SEU_SCRIPT_ESTOQUE/exec" />
-                </Field>
-              </div>
-              <div className="flex gap-2 flex-wrap mb-4">
-                <Btn onClick={saveUrlEstoque}>💾 Salvar URL Estoque</Btn>
-                <Btn variant="info" onClick={() => syncEstoqueGS()}>📤 Enviar Estoque</Btn>
-                <Btn variant="success" onClick={() => loadFromEstoqueGS()}>📥 Carregar Estoque</Btn>
-                <Btn variant="outline" onClick={() => testEstoqueGSConnection()}>🔗 Testar Conexão</Btn>
-              </div>
-              <div className="h-px bg-border my-4" />
-              <div className="flex gap-2.5 mb-3 flex-wrap items-end">
-                <Field label="URL da Planilha Financeira (Fluxo de Caixa + Custos)" className="flex-1 min-w-[300px]">
-                  <Input value={gsUrlFluxo} onChange={e => setGsUrlFluxo(e.target.value)} placeholder="https://script.google.com/macros/s/SEU_SCRIPT_FLUXO/exec" />
-                </Field>
-              </div>
-              <div className="flex gap-2 flex-wrap mb-4">
-                <Btn onClick={saveUrlFluxo}>💾 Salvar URL Financeiro</Btn>
-                <Btn variant="info" onClick={() => syncFluxoGS()}>📤 Enviar Financeiro</Btn>
-                <Btn variant="success" onClick={() => loadFromFluxoGS()}>📥 Carregar Financeiro</Btn>
-              </div>
-              <div className="h-px bg-border my-4" />
-              <div className="flex gap-2.5 mb-3 flex-wrap items-end">
-                <Field label="URL da Planilha de Controle de Equipe" className="flex-1 min-w-[300px]">
-                  <Input value={gsUrlEquipe} onChange={e => setGsUrlEquipe(e.target.value)} placeholder="https://script.google.com/macros/s/SEU_SCRIPT_EQUIPE/exec" />
-                </Field>
-              </div>
-              <div className="flex gap-2 flex-wrap mb-4">
-                <Btn onClick={saveUrlEquipe}>💾 Salvar URL Equipe</Btn>
-                <Btn variant="info" onClick={() => syncEquipeGS()}>📤 Enviar Equipe</Btn>
-                <Btn variant="success" onClick={() => loadFromEquipeGS()}>📥 Carregar Equipe</Btn>
-              </div>
-              <div className="pt-3 text-muted-foreground text-[11px] leading-[1.8]">
-                <b className="text-primary">Sincronização automática:</b> Os dados são enviados automaticamente para a planilha 3 segundos após cada alteração.<br />
-                <b className="text-primary">Como configurar:</b><br />
-                1. Acesse <a href="https://script.google.com" target="_blank" rel="noopener" className="text-primary underline">script.google.com</a><br />
-                2. Cole o código Apps Script<br />
-                3. Publique como Web App com acesso "Qualquer pessoa"<br />
-                4. Copie a URL e cole acima
+
+              {/* Auto mode info */}
+              {gasConfigMode === 'auto' && (
+                <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 mb-4 text-[11px] text-muted-foreground space-y-1.5">
+                  <div className="font-bold text-primary">✅ Modo Automático ativo</div>
+                  <div>As URLs abaixo são buscadas automaticamente do arquivo <code className="bg-secondary px-1 rounded">gas-config.json</code> hospedado no GitHub Pages.</div>
+                  <div>Para atualizar todos os dispositivos quando reimplantar um GAS:</div>
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>Abra o arquivo <code className="bg-secondary px-1 rounded">public/gas-config.json</code> na pasta do projeto</li>
+                    <li>Substitua a URL que mudou pela nova URL do GAS</li>
+                    <li>Faça <code className="bg-secondary px-1 rounded">git add . && git commit -m "update GAS URLs" && git push</code></li>
+                    <li>Todos os dispositivos atualizam automaticamente em ~2 min</li>
+                  </ol>
+                  <Btn variant="outline" onClick={async () => {
+                    const ok = await fetchRemoteGasConfig();
+                    if (ok) {
+                      const updated = DB.getObj('config');
+                      setGsUrl(updated.gsUrl || '');
+                      setGsUrlEstoque(updated.gsUrlEstoque || '');
+                      setGsUrlFluxo(updated.gsUrlFluxo || '');
+                      setGsUrlEquipe(updated.gsUrlEquipe || '');
+                      alert('✅ URLs atualizadas do servidor central!');
+                    } else {
+                      alert('⚠️ Não foi possível buscar a config central.');
+                    }
+                  }}>🔄 Buscar URLs agora</Btn>
+                </div>
+              )}
+
+              {/* URL fields — read-only in auto mode, editable in manual */}
+              <div className={gasConfigMode === 'auto' ? 'opacity-60 pointer-events-none' : ''}>
+                <div className="flex gap-2.5 mb-3 flex-wrap items-end">
+                  <Field label="URL Google Apps Script — Funcionários / RH" className="flex-1 min-w-[300px]">
+                    <Input value={gsUrl} onChange={e => setGsUrl(e.target.value)}
+                      readOnly={gasConfigMode === 'auto'}
+                      placeholder="https://script.google.com/macros/s/SEU_SCRIPT/exec" />
+                  </Field>
+                </div>
+                {gasConfigMode === 'manual' && (
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <Btn onClick={saveUrl}>💾 Salvar</Btn>
+                    <Btn variant="info" onClick={() => syncGS()}>📤 Enviar</Btn>
+                    <Btn variant="success" onClick={() => loadFromGS()}>📥 Carregar</Btn>
+                    <Btn variant="outline" onClick={() => testGSConnection()}>🔗 Testar</Btn>
+                  </div>
+                )}
+                <div className="h-px bg-border my-3" />
+
+                <div className="flex gap-2.5 mb-3 flex-wrap items-end">
+                  <Field label="URL Google Apps Script — Estoque / Abastecimento / Óleo" className="flex-1 min-w-[300px]">
+                    <Input value={gsUrlEstoque} onChange={e => setGsUrlEstoque(e.target.value)}
+                      readOnly={gasConfigMode === 'auto'}
+                      placeholder="https://script.google.com/macros/s/SEU_SCRIPT_ESTOQUE/exec" />
+                  </Field>
+                </div>
+                {gasConfigMode === 'manual' && (
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <Btn onClick={saveUrlEstoque}>💾 Salvar</Btn>
+                    <Btn variant="info" onClick={() => syncEstoqueGS()}>📤 Enviar</Btn>
+                    <Btn variant="success" onClick={() => loadFromEstoqueGS()}>📥 Carregar</Btn>
+                    <Btn variant="outline" onClick={() => testEstoqueGSConnection()}>🔗 Testar</Btn>
+                  </div>
+                )}
+                <div className="h-px bg-border my-3" />
+
+                <div className="flex gap-2.5 mb-3 flex-wrap items-end">
+                  <Field label="URL Google Apps Script — Financeiro (Fluxo de Caixa)" className="flex-1 min-w-[300px]">
+                    <Input value={gsUrlFluxo} onChange={e => setGsUrlFluxo(e.target.value)}
+                      readOnly={gasConfigMode === 'auto'}
+                      placeholder="https://script.google.com/macros/s/SEU_SCRIPT_FLUXO/exec" />
+                  </Field>
+                </div>
+                {gasConfigMode === 'manual' && (
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <Btn onClick={saveUrlFluxo}>💾 Salvar</Btn>
+                    <Btn variant="info" onClick={() => syncFluxoGS()}>📤 Enviar</Btn>
+                    <Btn variant="success" onClick={() => loadFromFluxoGS()}>📥 Carregar</Btn>
+                  </div>
+                )}
+                <div className="h-px bg-border my-3" />
+
+                <div className="flex gap-2.5 mb-3 flex-wrap items-end">
+                  <Field label="URL Google Apps Script — Controle de Equipe" className="flex-1 min-w-[300px]">
+                    <Input value={gsUrlEquipe} onChange={e => setGsUrlEquipe(e.target.value)}
+                      readOnly={gasConfigMode === 'auto'}
+                      placeholder="https://script.google.com/macros/s/SEU_SCRIPT_EQUIPE/exec" />
+                  </Field>
+                </div>
+                {gasConfigMode === 'manual' && (
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <Btn onClick={saveUrlEquipe}>💾 Salvar</Btn>
+                    <Btn variant="info" onClick={() => syncEquipeGS()}>📤 Enviar</Btn>
+                    <Btn variant="success" onClick={() => loadFromEquipeGS()}>📥 Carregar</Btn>
+                  </div>
+                )}
+
+                {gasConfigMode === 'manual' && (
+                  <div className="pt-3 text-muted-foreground text-[11px] leading-[1.8] border-t border-border mt-2">
+                    <b className="text-primary">Como configurar:</b><br />
+                    1. Acesse <a href="https://script.google.com" target="_blank" rel="noopener" className="text-primary underline">script.google.com</a><br />
+                    2. Cole o código Apps Script correspondente<br />
+                    3. Implantar → Nova implantação → Web App → Qualquer pessoa<br />
+                    4. Copie a URL e cole no campo acima
+                  </div>
+                )}
               </div>
             </>
           )}

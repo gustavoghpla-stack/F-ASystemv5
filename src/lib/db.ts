@@ -109,6 +109,9 @@ export interface AppConfig {
   certificadoConfig?: CertificadoConfig;
   receitaTotal?: number;
   cargosCustom?: string[];
+  // 'auto' = busca URLs do gas-config.json no GitHub Pages (todos os dispositivos atualizam juntos)
+  // 'manual' = Master digita as URLs manualmente (armazenado só no localStorage deste dispositivo)
+  gasConfigMode?: 'auto' | 'manual';
 }
 
 export type DBKey = 'func' | 'bancos' | 'escalas' | 'docs' | 'users' | 'acessos' | 'estoque' | 'estoque_mov' | 'veiculos' | 'abastecimentos' | 'fluxo_caixa' | 'custos_fixos' | 'equipe_avaliacoes' | 'trocas_oleo';
@@ -247,37 +250,57 @@ const defaultDocs = [
   { id: 13, desc: 'Comprovante de escolaridade', obrig: 'Não' },
 ];
 
+// ─── Configuração remota de URLs GAS ─────────────────────────────────────────
+// Busca URLs centralizadas do arquivo gas-config.json hospedado no GitHub Pages.
+// Quando gasConfigMode = 'auto', todos os dispositivos usam as URLs do arquivo
+// central — basta o Master atualizar o arquivo e fazer git push.
+
+export async function fetchRemoteGasConfig(): Promise<boolean> {
+  try {
+    // URL do arquivo de config no mesmo domínio do site
+    const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+    const configUrl = base + 'gas-config.json';
+    const res = await fetch(configUrl + '?t=' + Date.now()); // cache-bust
+    if (!res.ok) return false;
+    const remote = await res.json();
+    const cfg = DB.getObj('config');
+    let changed = false;
+    if (remote.gsUrl       && cfg.gsUrl       !== remote.gsUrl)       { cfg.gsUrl       = remote.gsUrl;       changed = true; }
+    if (remote.gsUrlEstoque && cfg.gsUrlEstoque !== remote.gsUrlEstoque) { cfg.gsUrlEstoque = remote.gsUrlEstoque; changed = true; }
+    if (remote.gsUrlFluxo   && cfg.gsUrlFluxo   !== remote.gsUrlFluxo)   { cfg.gsUrlFluxo   = remote.gsUrlFluxo;   changed = true; }
+    if (remote.gsUrlEquipe  && cfg.gsUrlEquipe  !== remote.gsUrlEquipe)  { cfg.gsUrlEquipe  = remote.gsUrlEquipe;  changed = true; }
+    if (changed) DB.setObj('config', cfg);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function initDefaultData(): Promise<void> {
   if (!DB.get<Documento>('docs').length) DB.set('docs', defaultDocs);
   const cfg = DB.getObj('config');
 
-  // Pre-populate GAS URLs if not yet configured
-  let changed = false;
-  if (!cfg.gsUrl) {
-    cfg.gsUrl = 'https://script.google.com/macros/s/AKfycbxznq-7nsau1_mS7JTu8njGxxZfT7mkrb-sFNFrOGc69DnZ-y41CjLn0xNM5yGIikB-dg/exec';
-    changed = true;
-  }
-  if (!cfg.gsUrlEstoque) {
-    cfg.gsUrlEstoque = 'https://script.google.com/macros/s/AKfycbyJeFVZbQPkzhuSxt7tgbqCTm3MpApTWW_q9AOv6PqaqQpEkYqcA6q5CdX0EPfF-nGb0Q/exec';
-    changed = true;
-  }
-  if (!cfg.gsUrlFluxo) {
-    cfg.gsUrlFluxo = 'https://script.google.com/macros/s/AKfycbyfgvmZFGNlm3OjNOAeSOvXOg_KW1rmGNWQdfVEkNHDkHfHIvWxtYgS2hvaO5Qw2Bg/exec';
-    changed = true;
-  }
-  if (!cfg.gsUrlEquipe) {
-    cfg.gsUrlEquipe = 'https://script.google.com/macros/s/AKfycbzksTnbbooIKyNwWzrTGf3XrtXNnDnLlS_3Qlg9IYyB3dQMm-tNJcqJRR05G1JtjZ-Q5Q/exec';
-    changed = true;
+  // Se modo automático (padrão), busca URLs do arquivo central no GitHub Pages
+  const mode = cfg.gasConfigMode ?? 'auto';
+  if (mode === 'auto') {
+    await fetchRemoteGasConfig();
+  } else {
+    // Modo manual: pré-popula apenas se ainda vazio
+    let changed = false;
+    if (!cfg.gsUrl)        { cfg.gsUrl        = 'https://script.google.com/macros/s/AKfycbxznq-7nsau1_mS7JTu8njGxxZfT7mkrb-sFNFrOGc69DnZ-y41CjLn0xNM5yGIikB-dg/exec'; changed = true; }
+    if (!cfg.gsUrlEstoque) { cfg.gsUrlEstoque = 'https://script.google.com/macros/s/AKfycbyJeFVZbQPkzhuSxt7tgbqCTm3MpApTWW_q9AOv6PqaqQpEkYqcA6q5CdX0EPfF-nGb0Q/exec'; changed = true; }
+    if (!cfg.gsUrlFluxo)   { cfg.gsUrlFluxo   = 'https://script.google.com/macros/s/AKfycbyfgvmZFGNlm3OjNOAeSOvXOg_KW1rmGNWQdfVEkNHDkHfHIvWxtYgS2hvaO5Qw2Bg/exec'; changed = true; }
+    if (!cfg.gsUrlEquipe)  { cfg.gsUrlEquipe  = 'https://script.google.com/macros/s/AKfycbzksTnbbooIKyNwWzrTGf3XrtXNnDnLlS_3Qlg9IYyB3dQMm-tNJcqJRR05G1JtjZ-Q5Q/exec'; changed = true; }
+    if (changed) DB.setObj('config', cfg);
   }
 
-  if (!cfg.masterPasswordHash) {
+  const cfg2 = DB.getObj('config');
+  if (!cfg2.masterPasswordHash) {
     try {
-      cfg.masterPasswordHash = await hashPassword('@Line2122!');
-      changed = true;
+      cfg2.masterPasswordHash = await hashPassword('@Line2122!');
+      DB.setObj('config', cfg2);
     } catch { /* noop */ }
   }
-
-  if (changed) DB.setObj('config', cfg);
 }
 
 export function logAcesso(evento: string, nome: string, user: string) {
